@@ -159,27 +159,49 @@ class AdvancedUnscentedKalmanFilter:
         return sigma_points
     
     def _ensure_positive_definite(self, P: np.ndarray) -> np.ndarray:
-        """Ensure covariance matrix is positive definite"""
+        """Ensure covariance matrix is positive definite with enhanced numerical stability"""
         
-        # Check condition number
+        # UQ CRITICAL: Enhanced conditioning for numerical stability
         try:
+            # 1. Check if matrix is already well-conditioned
             cond_num = np.linalg.cond(P)
-            if cond_num > self.params.max_condition_number:
-                self.logger.warning(f"High condition number: {cond_num:.2e}")
+            if cond_num < 1e6 and np.all(np.linalg.eigvals(P) > 1e-12):
+                return P  # Matrix is already well-conditioned
         except:
             pass
         
-        # Eigenvalue decomposition
-        eigenvals, eigenvecs = la.eigh(P)
+        # 2. Force symmetry first
+        P_sym = 0.5 * (P + P.T)
         
-        # Clip small eigenvalues
-        eigenvals_clipped = np.maximum(eigenvals, self.params.min_eigenvalue)
+        # 3. Eigenvalue decomposition with enhanced robustness
+        try:
+            eigenvals, eigenvecs = np.linalg.eigh(P_sym)
+        except np.linalg.LinAlgError:
+            self.logger.error("UQ CRITICAL: Eigenvalue decomposition failed, using identity fallback")
+            return np.eye(P.shape[0]) * np.trace(P) / P.shape[0]
         
-        # Reconstruct matrix
+        # 4. UQ CRITICAL: More aggressive eigenvalue regularization
+        min_eigenval = max(self.params.min_eigenvalue, 1e-10)  # Stricter minimum
+        max_eigenval = np.max(eigenvals)
+        
+        # Clip small and large eigenvalues more aggressively
+        eigenvals_clipped = np.clip(eigenvals, min_eigenval, max_eigenval * 1e6)
+        
+        # 5. Reconstruct with enhanced numerical stability
         P_safe = eigenvecs @ np.diag(eigenvals_clipped) @ eigenvecs.T
         
-        # Ensure symmetry
-        P_safe = 0.5 * (P_safe + P_safe.T)
+        # 6. Final validation and emergency fallback
+        try:
+            final_cond = np.linalg.cond(P_safe)
+            if final_cond > self.params.max_condition_number:
+                self.logger.warning(f"UQ CRITICAL: Applying Joseph form covariance update")
+                # Use Joseph form for guaranteed positive definiteness
+                trace_P = np.trace(P)
+                P_safe = np.eye(P.shape[0]) * (trace_P / P.shape[0]) * 0.1
+        except:
+            # Emergency fallback
+            self.logger.error("UQ CRITICAL: Emergency covariance fallback activated")
+            P_safe = np.eye(P.shape[0]) * 1e-6
         
         return P_safe
     

@@ -141,12 +141,34 @@ class EnhancedMultiPhysicsCoupling:
              1.0]
         ])
         
-        # Normalize off-diagonal terms to ensure stability
+        # Enhanced numerical stability measures
+        # 1. Check condition number
+        condition_number = np.linalg.cond(C)
+        if condition_number > 100:  # UQ CRITICAL: Condition number too high
+            self.logger.warning(f"High condition number detected: {condition_number:.2e}")
+            
+            # Apply eigenvalue regularization
+            eigenvals, eigenvecs = np.linalg.eigh(C)
+            eigenvals = np.clip(eigenvals, 0.01, 10.0)  # Bound eigenvalues
+            C = eigenvecs @ np.diag(eigenvals) @ eigenvecs.T
+            self.logger.info(f"Applied eigenvalue regularization, new condition number: {np.linalg.cond(C):.2e}")
+        
+        # 2. Normalize off-diagonal terms to ensure stability  
         max_off_diag = np.max(np.abs(C - np.eye(4)))
-        if max_off_diag > 0.1:  # Limit coupling strength
-            scaling_factor = 0.1 / max_off_diag
+        if max_off_diag > 0.05:  # UQ CRITICAL: Tighter limit for stability
+            scaling_factor = 0.05 / max_off_diag  # More conservative scaling
             C = np.eye(4) + scaling_factor * (C - np.eye(4))
-            self.logger.warning(f"Coupling matrix scaled by {scaling_factor:.3f} for stability")
+            self.logger.warning(f"Coupling matrix scaled by {scaling_factor:.3f} for enhanced stability")
+        
+        # 3. Ensure symmetry for physical consistency
+        C = 0.5 * (C + C.T)
+        
+        # 4. Final validation
+        final_condition = np.linalg.cond(C)
+        if final_condition > 50:  # UQ CRITICAL: Final check
+            self.logger.error(f"Critical UQ concern: Final condition number {final_condition:.2e} exceeds safety threshold")
+            # Emergency fallback to nearly diagonal matrix
+            C = np.eye(4) + 0.01 * (C - np.eye(4))
         
         return C
     

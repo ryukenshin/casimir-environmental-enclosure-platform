@@ -204,11 +204,39 @@ class EnhancedModelPredictiveController:
             # Approximate control uncertainty (simplified)
             self.sigma_u[k] = self.sigma_x[k][:self.n_u] if self.n_u <= self.n_x else np.zeros(self.n_u)
         
-        # Constraint tightening factor (γ = 3 for 99.7% confidence)
-        self.gamma = 3.0 if self.params.confidence_level >= 0.997 else \
-                     2.0 if self.params.confidence_level >= 0.95 else 1.0
+        # UQ HIGH: Adaptive constraint tightening factor
+        # Calculate adaptive γ based on system uncertainty characteristics
+        max_uncertainty = np.max(self.sigma_x) if np.any(self.sigma_x > 0) else 1e-6
         
-        self.logger.info(f"Uncertainty propagation computed (γ = {self.gamma})")
+        if max_uncertainty < 1e-6:
+            # Very low uncertainty - use minimal tightening
+            self.gamma = 1.0
+            confidence_achieved = 0.68  # ~68% for 1σ
+        elif max_uncertainty < 1e-3:
+            # Low uncertainty - moderate tightening
+            self.gamma = 2.0
+            confidence_achieved = 0.95  # ~95% for 2σ
+        elif self.params.confidence_level >= 0.997:
+            # High confidence required - use 3σ
+            self.gamma = 3.0
+            confidence_achieved = 0.997  # ~99.7% for 3σ
+        else:
+            # Adaptive based on confidence level
+            if self.params.confidence_level >= 0.95:
+                self.gamma = 2.0
+                confidence_achieved = 0.95
+            else:
+                self.gamma = 1.0
+                confidence_achieved = 0.68
+        
+        # UQ HIGH: Check for over-conservative tightening
+        if self.gamma > 2.5 and max_uncertainty > 0.1:
+            self.logger.warning(f"UQ HIGH: Constraint tightening may be over-conservative (γ={self.gamma}, σ_max={max_uncertainty:.2e})")
+            # Option to reduce tightening for feasibility
+            self.gamma = min(self.gamma, 2.5)
+            confidence_achieved = 0.99
+        
+        self.logger.info(f"Constraint tightening: γ={self.gamma}, confidence≈{confidence_achieved*100:.1f}%")
     
     def setup_optimization_problem(self, 
                                   x_current: np.ndarray,

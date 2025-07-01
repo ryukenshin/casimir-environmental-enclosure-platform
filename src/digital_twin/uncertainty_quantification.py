@@ -97,15 +97,42 @@ class EnhancedUncertaintyQuantification:
             Tuple of (A, B, C) sample matrices
         """
         
+        # UQ HIGH: Enhanced sample size determination for high-dimensional systems
+        d = len(input_ranges)  # Number of input dimensions
+        
         if num_samples is None:
-            num_samples = self.params.sobol_samples
+            # Adaptive sample size based on dimensionality
+            if d <= 5:
+                base_samples = self.params.sobol_samples  # 2^12 = 4096
+            elif d <= 10:
+                base_samples = self.params.sobol_samples * 2  # 2^13 = 8192
+            elif d <= 20:
+                base_samples = self.params.sobol_samples * 4  # 2^14 = 16384
+            else:
+                base_samples = self.params.sobol_samples * 8  # 2^15 = 32768
+                self.logger.warning(f"UQ HIGH: High-dimensional system ({d}D) detected, using {base_samples} samples")
+            
+            num_samples = base_samples
         
         # Ensure sample size is power of 2 for Sobol sequences
         m = int(np.ceil(np.log2(num_samples)))
         actual_samples = 2**m
         
+        # UQ HIGH: Minimum sample requirement for reliable convergence
+        min_samples_required = max(1024, d * 256)  # At least 256 samples per dimension
+        if actual_samples < min_samples_required:
+            m_min = int(np.ceil(np.log2(min_samples_required)))
+            actual_samples = 2**m_min
+            self.logger.warning(f"UQ HIGH: Increasing samples from {2**m} to {actual_samples} for convergence")
+        
         if actual_samples != num_samples:
-            self.logger.info(f"Adjusted sample size from {num_samples} to {actual_samples} (2^{m})")
+            self.logger.info(f"Adjusted sample size from {num_samples} to {actual_samples} (2^{int(np.log2(actual_samples))})")
+        
+        # UQ HIGH: Validate dimensionality limits
+        if d > 50:
+            raise ValueError(f"UQ HIGH: Dimensionality {d} exceeds recommended limit of 50 for Sobol analysis")
+        elif d > 20:
+            self.logger.warning(f"UQ HIGH: High dimensionality ({d}) may require validation of convergence")
         
         d = len(input_ranges)  # Number of input dimensions
         
