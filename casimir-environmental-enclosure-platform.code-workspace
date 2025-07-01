@@ -1,0 +1,52 @@
+{
+	"folders": [
+		{
+			"name": "casimir-environmental-enclosure-platform (main)",
+			"path": "."
+		},
+		{
+			"name": "casimir-nanopositioning-platform",
+			"path": "../casimir-nanopositioning-platform"
+		},
+		{
+			"name": "casimir-ultra-smooth-fabrication-platform",
+			"path": "../casimir-ultra-smooth-fabrication-platform"
+		},
+		{
+			"name": "energy",
+			"path": "../energy"
+		},
+		{
+			"name": "lqg-anec-framework",
+			"path": "../lqg-anec-framework"
+		},
+		{
+			"name": "warp-mock-data-generator",
+			"path": "../warp-mock-data-generator"
+		},
+		{
+			"name": "warp-sensitivity-analysis",
+			"path": "../warp-sensitivity-analysis"
+		}
+	],
+	"settings": {
+		"python.defaultInterpreterPath": "C:\\Program Files\\Python313\\python.exe",
+		"files.exclude": {
+			"**/.git": true,
+			"**/node_modules": true,
+			"**/__pycache__": true,
+			"**/.pytest_cache": true,
+			"**/venv": true,
+			"**/.venv": true
+		},
+		"powershell.cwd": "casimir-environmental-enclosure-platform (main)"
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-python.python",
+			"ms-vscode.cpptools",
+			"james-yu.latex-workshop",
+			"ms-vscode.powershell"
+		]
+	}
+}
